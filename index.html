@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kıyafet Toptancısı Bulucu | B2B Satış Radarı</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="dark-theme">
+    <!-- Top Dashboard Bar -->
+    <div class="dashboard-ticker">
+        <div class="ticker-content">
+            <div class="ticker-item currency">
+                <span class="live-dot"></span>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                <span id="usd-rate" class="rate-badge">USD: ₺--.--</span>
+                <span class="rate-divider">•</span>
+                <span id="eur-rate" class="rate-badge">EUR: ₺--.--</span>
+            </div>
+            <div class="ticker-item weather">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.5 19a4.5 4.5 0 1 0-4.5-4.5h-8a3.5 3.5 0 0 0 0 7h12.5z"/></svg>
+                <span id="weather-info">Hava Durumu: Bekleniyor...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-branding">
+            <div class="logo-badge">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                    <polyline points="2 17 12 22 22 17"></polyline>
+                    <polyline points="2 12 12 17 22 12"></polyline>
+                </svg>
+            </div>
+            <div class="header-titles">
+                <h1>Kıyafet Toptancısı Bulucu <span class="badge-radar">B2B RADAR</span></h1>
+                <p>Toptancıları bulun, dijital olgunluk analizi yapın, saha satış rotanızı yönetin.</p>
+            </div>
+        </div>
+        
+        <div class="header-actions">
+            <button id="wa-settings-btn" class="header-action-btn wa-header-btn" title="Otomatik WhatsApp Şablonunu Düzenle">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
+                </svg>
+                <span>WA Şablonu</span>
+            </button>
+            <div class="view-toggles">
+                <button id="view-map-btn" class="view-toggle-btn active">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+                    <span>Harita</span>
+                </button>
+                <button id="view-kanban-btn" class="view-toggle-btn">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>
+                    <span>Satış Panosu</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Search Section -->
+    <section class="search-section">
+        <div class="search-container">
+            <div class="search-row">
+                <div class="search-input-wrapper">
+                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <path d="m21 21-4.35-4.35"/>
+                    </svg>
+                    <input type="text" id="address-input" class="search-input" placeholder="Şehir, ilçe veya toptancı merkezi ara (Örn: Merter, Kemeraltı, Osmanbey)..." autocomplete="off">
+                    <button id="locate-btn" class="locate-btn" title="Mevcut Konumumu Kullan">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <circle cx="12" cy="12" r="10"/>
+                            <circle cx="12" cy="12" r="3"/>
+                            <line x1="12" y1="2" x2="12" y2="4"/>
+                            <line x1="12" y1="20" x2="12" y2="22"/>
+                            <line x1="2" y1="12" x2="4" y2="12"/>
+                            <line x1="20" y1="12" x2="22" y2="12"/>
+                        </svg>
+                    </button>
+                </div>
+                <button id="search-btn" class="search-btn" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <circle cx="11" cy="11" r="8"/>
+                        <path d="m21 21-4.35-4.35"/>
+                    </svg>
+                    <span>Toptancıları Bul</span>
+                </button>
+                <button id="search-city-btn" class="search-btn city-search-btn" disabled title="Bulunduğun şehirdeki tüm toptancıları maksimum (50km) yarıçapta bulur.">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                    <span id="city-search-text">Şehirdeki Tümünü Bul</span>
+                </button>
+            </div>
+            
+            <div class="filter-controls-row">
+                <div class="advanced-filters-group">
+                    <label class="filter-chip">
+                        <input type="checkbox" id="filter-open">
+                        <span class="chip-inner">
+                            <span class="chip-dot dot-green"></span>
+                            Şu An Açık
+                        </span>
+                    </label>
+                    <label class="filter-chip">
+                        <input type="checkbox" id="filter-rating">
+                        <span class="chip-inner">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="#f59e0b" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                            4+ Yıldız
+                        </span>
+                    </label>
+                    <button id="favorites-toggle" class="favorites-toggle-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                        </svg>
+                        <span>Favorilerim (CRM)</span>
+                    </button>
+                </div>
+
+                <div class="radius-control-group">
+                    <label for="radius-slider" class="radius-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                            <circle cx="12" cy="12" r="10"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                        <span>Yarıçap:</span>
+                    </label>
+                    <input type="range" id="radius-slider" class="radius-slider" min="1" max="50" value="10" step="1">
+                    <span id="radius-value" class="radius-badge">10 km</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="loading-spinner">
+            <div class="radar-spinner">
+                <div class="radar-pulse"></div>
+                <div class="radar-core"></div>
+            </div>
+            <p id="loading-text">Toptancılar taranıyor...</p>
+            <span class="loading-subtext">Google Places & B2B Ağları Analiz Ediliyor</span>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        
+        <!-- Harita Görünümü -->
+        <div id="map-view-container" class="view-panel">
+            <!-- Results Panel -->
+            <aside class="results-panel" id="results-panel">
+                <div id="initial-state" class="state-message">
+                    <div class="state-icon-wrapper">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                            <circle cx="12" cy="10" r="3"/>
+                        </svg>
+                    </div>
+                    <h3>Aramaya Başla</h3>
+                    <p>Arama çubuğuna bir şehir veya semt girin ya da haritadan bir noktaya tıklayın.</p>
+                </div>
+
+                <div id="results-header" class="results-header hidden">
+                    <div class="results-count">
+                        <span id="results-count-text">0 toptancı bulundu</span>
+                    </div>
+                    <div class="results-actions">
+                        <select id="sort-select" class="sort-select">
+                            <option value="rating">★ Puana Göre</option>
+                            <option value="distance">📍 Mesafeye Göre</option>
+                            <option value="name">🔤 İsme Göre</option>
+                        </select>
+                        <button id="export-btn" class="export-btn" title="CSV Olarak İndir (CRM Verileri Dahil)">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7,10 12,15 17,10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                            <span>Dışa Aktar</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="results-list" class="results-list"></div>
+
+                <div id="no-results" class="state-message hidden">
+                    <div class="state-icon-wrapper">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="15" y1="9" x2="9" y2="15"/>
+                            <line x1="9" y1="9" x2="15" y2="15"/>
+                        </svg>
+                    </div>
+                    <h3>Sonuç Bulunamadı</h3>
+                    <p>Bu bölgede kıyafet toptancısı bulunamadı. Yarıçapı artırmayı veya farklı bir anahtar kelime denemeyi seçin.</p>
+                </div>
+            </aside>
+
+            <!-- Map Container -->
+            <div class="map-container">
+                <div id="map" class="map"></div>
+                
+                <!-- Rota Çizme Yüzen Paneli -->
+                <div id="route-panel" class="route-panel hidden">
+                    <div class="route-panel-info">
+                        <span class="route-dot"></span>
+                        <span id="route-count-text">0 Nokta Seçili</span>
+                    </div>
+                    <div class="route-panel-actions">
+                        <button id="draw-route-btn" class="route-action-btn primary">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                            Rotayı Çiz
+                        </button>
+                        <button id="clear-route-btn" class="route-action-btn secondary">
+                            Temizle
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Kanban Panosu Görünümü -->
+        <div id="kanban-view-container" class="view-panel kanban-view" style="display: none;">
+            <div class="kanban-board">
+                
+                <div class="kanban-column col-yeni" data-status="Yeni">
+                    <div class="kanban-column-header">
+                        <div class="col-title">
+                            <span class="col-indicator dot-blue"></span>
+                            <h3>Yeni Bulundu</h3>
+                        </div>
+                        <span class="badge">0</span>
+                    </div>
+                    <div class="kanban-cards" id="kanban-col-yeni"></div>
+                </div>
+
+                <div class="kanban-column col-iletisim" data-status="İletişime Geçildi">
+                    <div class="kanban-column-header">
+                        <div class="col-title">
+                            <span class="col-indicator dot-amber"></span>
+                            <h3>İletişime Geçildi</h3>
+                        </div>
+                        <span class="badge">0</span>
+                    </div>
+                    <div class="kanban-cards" id="kanban-col-iletisim"></div>
+                </div>
+
+                <div class="kanban-column col-toplanti" data-status="Toplantı Ayarlandı">
+                    <div class="kanban-column-header">
+                        <div class="col-title">
+                            <span class="col-indicator dot-purple"></span>
+                            <h3>Toplantı Ayarlandı</h3>
+                        </div>
+                        <span class="badge">0</span>
+                    </div>
+                    <div class="kanban-cards" id="kanban-col-toplanti"></div>
+                </div>
+
+                <div class="kanban-column col-satis" data-status="Satış Başarılı">
+                    <div class="kanban-column-header">
+                        <div class="col-title">
+                            <span class="col-indicator dot-emerald"></span>
+                            <h3>Satış Başarılı</h3>
+                        </div>
+                        <span class="badge">0</span>
+                    </div>
+                    <div class="kanban-cards" id="kanban-col-satis"></div>
+                </div>
+
+                <div class="kanban-column col-red" data-status="İlgilenmiyor">
+                    <div class="kanban-column-header">
+                        <div class="col-title">
+                            <span class="col-indicator dot-slate"></span>
+                            <h3>İlgilenmiyor</h3>
+                        </div>
+                        <span class="badge">0</span>
+                    </div>
+                    <div class="kanban-cards" id="kanban-col-red"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- WA Settings Modal -->
+    <div id="wa-settings-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="document.getElementById('wa-settings-modal').classList.add('hidden')"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-icon wa-modal-icon">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2>WhatsApp Satış Şablonu</h2>
+                        <p class="modal-subtitle">Kartlardaki WhatsApp butonuna basıldığında gönderilecek hazır pazarlama taslağı.</p>
+                    </div>
+                </div>
+                <button class="close-modal-btn" onclick="document.getElementById('wa-settings-modal').classList.add('hidden')">&times;</button>
+            </div>
+            <div class="modal-body-content">
+                <label for="wa-template-text" class="input-label">Mesaj Metni Taslağı</label>
+                <textarea id="wa-template-text" rows="5" class="modal-textarea" placeholder="Merhaba, e-ticaret sitenizi ve Trendyol mağazanızı saniyeler içinde kuran sistemimizle dijitalleşmenize yardımcı olmak isteriz. Müsait olduğunuzda görüşebilir miyiz?"></textarea>
+                <div class="modal-hint">
+                    💡 İpucu: Bu mesaj, toptancının telefon numarasıyla birlikte WhatsApp Web veya uygulamasında otomatik olarak açılır.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-cancel-btn" onclick="document.getElementById('wa-settings-modal').classList.add('hidden')">Vazgeç</button>
+                <button id="save-wa-template-btn" class="modal-save-btn">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                    Şablonu Kaydet
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- QR & Sales Pitch Modal -->
+    <div id="info-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="document.getElementById('info-modal').classList.add('hidden')"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-icon pitch-modal-icon">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    </div>
+                    <div>
+                        <h2 id="modal-title">Satış Asistanı</h2>
+                        <p class="modal-subtitle">Yapay zeka destekli B2B iletişim ve vCard aracı</p>
+                    </div>
+                </div>
+                <button class="close-modal-btn" onclick="document.getElementById('info-modal').classList.add('hidden')">&times;</button>
+            </div>
+            <div id="modal-body" class="modal-body-content"></div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <p><span>Kıyafet Toptancısı Bulucu</span> &mdash; B2B Satış Radarı & CRM Platformu</p>
+            <div class="footer-meta">
+                <span class="status-indicator">
+                    <span class="pulse-dot"></span> Canlı Veri Akışı Aktif
+                </span>
+            </div>
+        </div>
+    </footer>
+
+        <script src="js/app.js"></script>
+    <script>
+        const GOOGLE_MAPS_API_KEY = 'AIzaSyCDMlI0eNCrEsKrcdvQTgseKDPFjOIxHaY';
+        const script = document.createElement('script');
+        script.src = 'https://maps.googleapis.com/maps/api/js?key=' + GOOGLE_MAPS_API_KEY + '&libraries=places&language=tr&region=TR&callback=initMap';
+        script.async = true;
+        script.defer = true;
+        document.body.appendChild(script);
+    </script>
+</body>
+</html>

@@ -1,0 +1,996 @@
+﻿/* ============================================
+   KÃƒâ€Ã‚Â±yafet ToptancÃƒâ€Ã‚Â±sÃƒâ€Ã‚Â± Bulucu - Uygulama MantÃƒâ€Ã‚Â±Ãƒâ€Ã…Â¸Ãƒâ€Ã‚Â±
+   v2 - Koordinat sorunlarÃƒâ€Ã‚Â± giderildi
+   ============================================ */
+
+// --- Global DeÃ„Å¸iÃ…Å¸kenler ---
+var map;
+var placesService;
+var autocomplete;
+var directionsService;
+var directionsRenderer;
+var markers = [];
+var centerMarker = null;
+var searchCircle = null;
+var infoWindow = null;
+var allPlaces = [];
+var selectedLatLng = null;
+
+// State ve Filtreler
+var crmData = JSON.parse(localStorage.getItem('kiyafet_crm_data')) || {};
+var filterOpenNow = false;
+var filterMinRating = 0;
+var showFavoritesOnly = false;
+
+// CRM API'leri Baslat (Kur ve Hava Durumu)
+function initDashboardApis() {
+    fetch('https://open.er-api.com/v6/latest/USD')
+        .then(res => res.json())
+        .then(data => {
+            if(data && data.rates) {
+                var usd = data.rates.TRY.toFixed(2);
+                var eur = (data.rates.TRY / data.rates.EUR).toFixed(2);
+                document.getElementById('usd-rate').innerText = 'USD: â‚º' + usd;
+                document.getElementById('eur-rate').innerText = 'EUR: â‚º' + eur;
+            }
+        }).catch(e => console.log('Kur hatasi', e));
+}
+initDashboardApis();
+
+// Her yerin koordinatlarÃ„Â±nÃ„Â± dÃƒÂ¼z sayÃ„Â± olarak sakla
+var coordsMap = {};
+
+// Arama anahtar kelimeleri
+var SEARCH_KEYWORDS = [
+    'kÃƒâ€Ã‚Â±yafet toptancÃƒâ€Ã‚Â±sÃƒâ€Ã‚Â±',
+    'giyim toptancÃƒâ€Ã‚Â±sÃƒâ€Ã‚Â±',
+    'tekstil toptancÃƒâ€Ã‚Â±sÃƒâ€Ã‚Â±',
+    'konfeksiyon toptancÃƒâ€Ã‚Â±sÃƒâ€Ã‚Â±',
+    'toptan giyim',
+    'toptan kÃƒâ€Ã‚Â±yafet'
+];
+
+// --- Koordinat YardÃ„Â±mcÃ„Â±larÃ„Â± ---
+function safeLatLng(location) {
+    if (!location) return null;
+    var lat, lng;
+    if (typeof location.lat === 'function') {
+        lat = location.lat();
+        lng = location.lng();
+    } else if (typeof location.lat === 'number') {
+        lat = location.lat;
+        lng = location.lng;
+    } else {
+        return null;
+    }
+    if (isNaN(lat) || isNaN(lng)) return null;
+    return { lat: lat, lng: lng };
+}
+
+function storeCoords(placeId, location) {
+    var coords = safeLatLng(location);
+    if (coords && placeId) {
+        coordsMap[placeId] = coords;
+    }
+    return coords;
+}
+
+function getCoords(placeId) {
+    return coordsMap[placeId] || null;
+}
+
+// --- BaÃ…Å¸langÃ„Â±ÃƒÂ§ ---
+function initApp() {
+    initMap();
+    initAutocomplete();
+    initEventListeners();
+    console.log('[OK] Uygulama baÃ…Å¸latÃ„Â±ldÃ„Â±');
+}
+
+// --- Harita BaÃ…Å¸lat ---
+function initMap() {
+    var turkeyCenter = { lat: 39.9334, lng: 32.8597 };
+
+    map = new google.maps.Map(document.getElementById('map'), {
+        center: turkeyCenter,
+        zoom: 6,
+        styles: [
+            { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+            { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] }
+        ],
+        mapTypeControl: true,
+        mapTypeControlOptions: { position: google.maps.ControlPosition.TOP_RIGHT },
+        fullscreenControl: true,
+        streetViewControl: false,
+        zoomControl: true,
+        zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_CENTER }
+    });
+
+    placesService = new google.maps.places.PlacesService(map);
+    infoWindow = new google.maps.InfoWindow();
+    
+    // Rota cizimi icin servisler
+    directionsService = new google.maps.DirectionsService();
+    directionsRenderer = new google.maps.DirectionsRenderer({
+        map: map,
+        suppressMarkers: false,
+        polylineOptions: {
+            strokeColor: '#2563eb',
+            strokeWeight: 5
+        }
+    });
+}
+
+// --- Autocomplete BaÃ…Å¸lat ---
+function initAutocomplete() {
+    var input = document.getElementById('address-input');
+
+    autocomplete = new google.maps.places.Autocomplete(input, {
+        componentRestrictions: { country: 'tr' },
+        fields: ['geometry', 'formatted_address', 'name'],
+        types: ['geocode', 'establishment']
+    });
+
+    autocomplete.addListener('place_changed', function () {
+        var place = autocomplete.getPlace();
+        if (!place.geometry || !place.geometry.location) return;
+
+        var coords = safeLatLng(place.geometry.location);
+        if (!coords) return;
+
+        selectedLatLng = coords;
+        document.getElementById('search-btn').disabled = false;
+        console.log('[OK] Konum seÃƒÂ§ildi:', coords.lat, coords.lng);
+    });
+}
+
+// --- Event Listener'lar ---
+function initEventListeners() {
+    // Konumumu Bul
+    document.getElementById('locate-btn').addEventListener('click', function () {
+        if (navigator.geolocation) {
+            var btn = this;
+            btn.classList.add('loading');
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    btn.classList.remove('loading');
+                    var pos = { lat: position.coords.latitude, lng: position.coords.longitude };
+                    selectedLatLng = pos;
+                    document.getElementById('search-btn').disabled = false;
+                    document.getElementById('address-input').value = 'Mevcut Konumum';
+                    map.setCenter(pos);
+                    map.setZoom(13);
+                    // Otomatik arama baslat
+                    var radius = parseInt(document.getElementById('radius-slider').value) * 1000;
+                    startSearch(pos.lat, pos.lng, radius);
+                },
+                function(error) {
+                    btn.classList.remove('loading');
+                    alert('Konum alÃ„Â±namadÃ„Â±. LÃƒÂ¼tfen tarayÃ„Â±cÃ„Â± izinlerini kontrol edin.');
+                }
+            );
+        } else {
+            alert('TarayÃ„Â±cÃ„Â±nÃ„Â±z konum ÃƒÂ¶zelliÃ„Å¸ini desteklemiyor.');
+        }
+    });
+
+    // Filtreler
+    document.getElementById('filter-open').addEventListener('change', function() {
+        filterOpenNow = this.checked;
+        applyFiltersAndRender();
+    });
+
+    document.getElementById('filter-rating').addEventListener('change', function() {
+        filterMinRating = this.checked ? 4 : 0;
+        applyFiltersAndRender();
+    });
+
+    document.getElementById('favorites-toggle').addEventListener('click', function() {
+        showFavoritesOnly = !showFavoritesOnly;
+        this.classList.toggle('active', showFavoritesOnly);
+        applyFiltersAndRender();
+    });
+
+    document.getElementById('search-btn').addEventListener('click', function () {
+        if (selectedLatLng) {
+            var radius = parseInt(document.getElementById('radius-slider').value) * 1000;
+            startSearch(selectedLatLng.lat, selectedLatLng.lng, radius);
+        }
+    });
+
+    document.getElementById('address-input').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            setTimeout(function () {
+                if (selectedLatLng) {
+                    var radius = parseInt(document.getElementById('radius-slider').value) * 1000;
+                    startSearch(selectedLatLng.lat, selectedLatLng.lng, radius);
+                }
+            }, 300);
+        }
+    });
+
+    document.getElementById('radius-slider').addEventListener('input', function () {
+        document.getElementById('radius-value').textContent = this.value + ' km';
+    });
+
+    document.getElementById('sort-select').addEventListener('change', function () {
+        applyFiltersAndRender();
+    });
+
+    document.getElementById('export-btn').addEventListener('click', function () {
+        var currentSorted = [];
+        var cards = document.querySelectorAll('.place-card');
+        cards.forEach(function(c) {
+            var id = c.getAttribute('data-place-id');
+            var p = allPlaces.find(function(pl) { return pl.place_id === id; });
+            if (p) currentSorted.push(p);
+        });
+        if (currentSorted.length > 0) {
+            exportCSV(currentSorted);
+        } else if (allPlaces.length > 0) {
+            exportCSV(allPlaces);
+        }
+    });
+}
+
+// --- Filtreleri Uygula ve GÃƒÂ¶ster ---
+function applyFiltersAndRender() {
+    if (allPlaces.length === 0) return;
+
+    var filtered = allPlaces.filter(function(place) {
+        // Favoriler filtresi
+        if (showFavoritesOnly && (!crmData[place.place_id] || !crmData[place.place_id].isFavorite)) {
+            return false;
+        }
+        
+        // Puan filtresi
+        var rating = place.rating || 0;
+        if (rating < filterMinRating) {
+            return false;
+        }
+
+        // AÃƒÂ§Ã„Â±k filtresi
+        if (filterOpenNow) {
+            if (!place.opening_hours || !place.opening_hours.isOpen) {
+                // Eger isOpen fonksiyon degilse
+                if (typeof place.opening_hours.isOpen === 'function') {
+                    if (!place.opening_hours.isOpen()) return false;
+                } else {
+                    return false; // Acik bilgisi yoksa veya kapaliysa gizle
+                }
+            }
+        }
+
+        return true;
+    });
+
+    // Sirala ve Goster
+    var sortBy = document.getElementById('sort-select').value;
+    var sorted = sortPlaces(filtered, sortBy);
+    
+    renderResults(sorted);
+    addMarkers(sorted);
+    
+    if (sorted.length > 0) {
+        showResultsHeader(sorted.length);
+        fitMapToMarkers();
+    } else {
+        showNoResults();
+    }
+}
+
+// --- Arama BaÃ…Å¸lat ---
+function startSearch(lat, lng, radius) {
+    showLoading(true);
+    clearAll();
+
+    var center = new google.maps.LatLng(lat, lng);
+
+    // Arama ÃƒÂ§emberi ÃƒÂ§iz
+    drawSearchCircle(center, radius);
+
+    // Merkez pin ekle
+    addCenterMarker({ lat: lat, lng: lng });
+
+    // TÃƒÂ¼m anahtar kelimeler ile ara
+    var completedSearches = 0;
+    var allResults = [];
+
+    SEARCH_KEYWORDS.forEach(function (keyword) {
+        searchNearby(center, radius, keyword, function (results) {
+            if (results && results.length > 0) {
+                // KoordinatlarÃ„Â± hemen kaydet
+                for (var i = 0; i < results.length; i++) {
+                    if (results[i].geometry && results[i].geometry.location) {
+                        storeCoords(results[i].place_id, results[i].geometry.location);
+                    }
+                }
+                allResults = allResults.concat(results);
+            }
+            completedSearches++;
+
+            updateLoadingText(completedSearches + '/' + SEARCH_KEYWORDS.length + ' arama tamamlandÃ„Â±...');
+
+            if (completedSearches === SEARCH_KEYWORDS.length) {
+                var unique = deduplicatePlaces(allResults);
+                
+                if (unique.length > 0) {
+                    fetchAllDetails(unique, function (detailedPlaces) {
+                        allPlaces = detailedPlaces;
+                        var sorted = sortPlaces(detailedPlaces, document.getElementById('sort-select').value);
+                        renderResults(sorted);
+                        addMarkers(sorted);
+                        fitMapToMarkers();
+                        showResultsHeader(sorted.length);
+                        showLoading(false);
+                    });
+                } else {
+                    showNoResults();
+                    showLoading(false);
+                }
+            }
+        });
+    });
+}
+
+// --- Places Nearby Search ---
+function searchNearby(center, radius, keyword, callback) {
+    placesService.nearbySearch({
+        location: center,
+        radius: radius,
+        keyword: keyword,
+        language: 'tr'
+    }, function (results, status) {
+        if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+            callback(results);
+        } else {
+            callback([]);
+        }
+    });
+}
+
+// --- TekrarlarÃ„Â± KaldÃ„Â±r ---
+function deduplicatePlaces(places) {
+    var seen = {};
+    var unique = [];
+    for (var i = 0; i < places.length; i++) {
+        if (places[i].place_id && !seen[places[i].place_id]) {
+            seen[places[i].place_id] = true;
+            unique.push(places[i]);
+        }
+    }
+    return unique;
+}
+
+// --- DetaylarÃ„Â± Al ---
+function fetchAllDetails(places, callback) {
+    var detailed = [];
+    var completed = 0;
+    var total = places.length;
+    var queue = places.slice();
+
+    function processNext() {
+        if (queue.length === 0) return;
+        var place = queue.shift();
+
+        placesService.getDetails({
+            placeId: place.place_id,
+            fields: [
+                'name', 'formatted_address', 'formatted_phone_number',
+                'international_phone_number', 'website', 'opening_hours',
+                'rating', 'user_ratings_total', 'geometry', 'place_id',
+                'business_status', 'url'
+            ]
+        }, function (result, status) {
+            if (status === google.maps.places.PlacesServiceStatus.OK && result) {
+                // KoordinatlarÃ„Â± kaydet
+                if (result.geometry && result.geometry.location) {
+                    storeCoords(result.place_id, result.geometry.location);
+                }
+                detailed.push(result);
+            } else {
+                // Detay alinamazsa orijinal veriyi kullan
+                detailed.push(place);
+            }
+
+            completed++;
+            updateLoadingText('Detaylar aliniyor... ' + completed + '/' + total);
+
+            if (completed === total) {
+                callback(detailed);
+            } else {
+                setTimeout(processNext, 80);
+            }
+        });
+    }
+
+    // 2 paralel isci baslat
+    processNext();
+    setTimeout(processNext, 50);
+}
+
+// --- SonuÃƒÂ§larÃ„Â± SÃ„Â±rala ---
+function sortPlaces(places, sortBy) {
+    var sorted = places.slice();
+    if (sortBy === 'rating') {
+        sorted.sort(function (a, b) { return (b.rating || 0) - (a.rating || 0); });
+    } else if (sortBy === 'name') {
+        sorted.sort(function (a, b) { return (a.name || '').localeCompare(b.name || '', 'tr'); });
+    } else if (sortBy === 'distance' && selectedLatLng) {
+        sorted.sort(function (a, b) {
+            var ca = getCoords(a.place_id);
+            var cb = getCoords(b.place_id);
+            if (!ca || !cb) return 0;
+            var da = haversine(selectedLatLng.lat, selectedLatLng.lng, ca.lat, ca.lng);
+            var db = haversine(selectedLatLng.lat, selectedLatLng.lng, cb.lat, cb.lng);
+            return da - db;
+        });
+    }
+    return sorted;
+}
+
+// --- Haversine mesafe (metre) ---
+function haversine(lat1, lng1, lat2, lng2) {
+    var R = 6371000;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLng = (lng2 - lng1) * Math.PI / 180;
+    var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLng/2) * Math.sin(dLng/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// --- Sonuclari Render Et ---
+function renderResults(places) {
+    var container = document.getElementById('results-list');
+    container.innerHTML = '';
+
+    for (var i = 0; i < places.length; i++) {
+        var card = createPlaceCard(places[i], i);
+        container.appendChild(card);
+    }
+}
+
+// --- Kart OluÃ…Å¸tur ---
+
+// --- Dijital Puan Hesaplayici ---
+function calculateDigitalScore(place) {
+    var score = 0;
+    if (place.website) score += 4;
+    if (place.formatted_phone_number) score += 2;
+    if (place.opening_hours) score += 1;
+    if (place.rating && place.rating >= 4) score += 2;
+    if (place.user_ratings_total && place.user_ratings_total > 10) score += 1;
+    return score;
+}
+
+// --- Kart Oluştur ---
+function createPlaceCard(place, index) {
+    var card = document.createElement('div');
+    card.className = 'place-card';
+    card.setAttribute('data-place-id', place.place_id);
+
+    var statusHTML = '';
+    if (place.opening_hours) {
+        try {
+            var isOpen = place.opening_hours.isOpen ? place.opening_hours.isOpen() : null;
+            if (isOpen === true) {
+                statusHTML = '<span class="place-status open">AÇIK</span>';
+            } else if (isOpen === false) {
+                statusHTML = '<span class="place-status closed">KAPALI</span>';
+            }
+        } catch(e) {}
+    }
+
+    var ratingHTML = '';
+    if (place.rating) {
+        ratingHTML = '<div class="place-rating">' +
+            '<div class="stars">' + createStars(place.rating) + '</div>' +
+            '<span class="rating-text">' + place.rating.toFixed(1) + ' (' + (place.user_ratings_total || 0) + ' yorum)</span>' +
+            '</div>';
+    }
+
+    var address = place.formatted_address || place.vicinity || 'Adres bilgisi yok';
+    
+    var coords = getCoords(place.place_id);
+    var directionsUrl = place.url || (coords ? 'https://www.google.com/maps/dir/?api=1&destination=' + coords.lat + ',' + coords.lng : '');
+
+    // CRM Data
+    var pData = crmData[place.place_id] || { isFavorite: false, status: 'Beklemede', notes: '' };
+    var favClass = pData.isFavorite ? ' active' : '';
+    
+    // Digital Score
+    var dScore = calculateDigitalScore(place);
+    var scoreClass = dScore >= 8 ? 'maturity-high' : (dScore >= 5 ? 'maturity-med' : 'maturity-low');
+    var noWebWarn = !place.website ? '<div class="sales-opportunity">SATIŞ FIRSATI: Web Sitesi Yok</div>' : '';
+
+    var cleanPhone = '';
+    if (place.international_phone_number || place.formatted_phone_number) {
+        var rawPhone = place.international_phone_number || place.formatted_phone_number;
+        cleanPhone = rawPhone.replace(/[^\d+]/g, '');
+        if (!cleanPhone.startsWith('+')) {
+            if (cleanPhone.startsWith('90')) cleanPhone = '+' + cleanPhone;
+            else if (cleanPhone.startsWith('0')) cleanPhone = '+9' + cleanPhone;
+            else cleanPhone = '+90' + cleanPhone;
+        }
+    }
+
+    var escapedName = escapeHTML(place.name).replace(/'/g, "\'");
+
+    card.innerHTML =
+        '<button class="favorite-btn' + favClass + '" onclick="event.stopPropagation(); toggleFavorite(\'' + place.place_id + '\', this)" title="Favorilere Ekle">' +
+        '<svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>' +
+        '</button>' +
+        noWebWarn +
+        '<div class="place-card-header">' +
+        '<span class="place-name">' + escapeHTML(place.name) + '</span>' + statusHTML +
+        '</div>' +
+        '<div class="maturity-score ' + scoreClass + '">Dijital Puan: ' + dScore + '/10</div>' +
+        ratingHTML +
+        '<div class="place-details">' +
+        '<div class="place-detail">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
+        '<span>' + escapeHTML(address) + '</span>' +
+        '</div>' +
+        (place.formatted_phone_number ? '<div class="place-detail">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>' +
+        '<a href="tel:' + place.formatted_phone_number + '">' + place.formatted_phone_number + '</a>' +
+        '</div>' : '') +
+        (place.website ? '<div class="place-detail">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>' +
+        '<a href="' + place.website + '" target="_blank">' + extractDomain(place.website) + '</a>' +
+        '</div>' : '') +
+        '</div>' +
+        
+        '<!-- CRM Alanı -->' +
+        '<div class="crm-section" onclick="event.stopPropagation();">' +
+        '<select class="crm-status-select" onchange="updateCrmStatus(\'' + place.place_id + '\', this.value)">' +
+        '<option value="Beklemede"' + (pData.status=='Beklemede'?' selected':'') + '>⏳ Beklemede</option>' +
+        '<option value="Aranacak"' + (pData.status=='Aranacak'?' selected':'') + '>📞 Aranacak</option>' +
+        '<option value="Görüşüldü"' + (pData.status=='Görüşüldü'?' selected':'') + '>💬 Görüşüldü</option>' +
+        '<option value="Demo Ayarlandı"' + (pData.status=='Demo Ayarlandı'?' selected':'') + '>📅 Demo Ayarlandı</option>' +
+        '<option value="Satış Kapatıldı"' + (pData.status=='Satış Kapatıldı'?' selected':'') + '>✅ Satış Kapatıldı</option>' +
+        '<option value="Red/İlgilenmiyor"' + (pData.status=='Red/İlgilenmiyor'?' selected':'') + '>❌ İlgilenmiyor</option>' +
+        '</select>' +
+        '<textarea class="crm-notes" placeholder="Müşteri notlarını buraya girin..." onchange="updateCrmNotes(\'' + place.place_id + '\', this.value)">' + escapeHTML(pData.notes || '') + '</textarea>' +
+        '</div>' +
+
+        '<div class="place-actions" style="margin-top:8px;">' +
+        '<a href="https://www.google.com/search?q=site:instagram.com+' + encodeURIComponent(place.name) + '" target="_blank" class="place-action-btn instagram" onclick="event.stopPropagation();">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>' +
+        'Instagram\'da Bul</a>' +
+        '<button class="place-action-btn pitch" onclick="event.stopPropagation(); generatePitch(\'' + escapedName + '\', ' + dScore + ', \'' + (place.website?1:0) + '\');">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>' +
+        'Satış Metni</button>' +
+        (cleanPhone ? '<a href="https://wa.me/' + cleanPhone.replace('+', '') + '" target="_blank" class="place-action-btn whatsapp" onclick="event.stopPropagation();">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>' +
+        'WhatsApp</a>' : '') +
+        '<button class="place-action-btn qr" onclick="event.stopPropagation(); showQrModal(\'' + escapedName + '\', \'' + (cleanPhone||'') + '\', \'' + escapeHTML(address).replace(/'/g, "\'") + '\', \'' + (place.website||'') + '\');">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><rect x="7" y="7" width="3" height="3"/><rect x="14" y="7" width="3" height="3"/><rect x="7" y="14" width="3" height="3"/><rect x="14" y="14" width="3" height="3"/></svg>' +
+        'QR vCard</button>' +
+        '<a href="' + directionsUrl + '" target="_blank" class="place-action-btn" onclick="event.stopPropagation();">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3,11 22,2 13,21 11,13"/></svg>' +
+        'Yol Tarifi</a>' +
+        (coords ? '<button class="place-action-btn" onclick="event.stopPropagation(); showStreetView(' + coords.lat + ', ' + coords.lng + ');">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.9 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>' +
+        'Sokak Görünümü</button>' : '') +
+        '</div>';
+
+    // Kart tiklama (Ortala ve InfoWindow Göster)
+    card.addEventListener('click', function () {
+        document.querySelectorAll('.place-card').forEach(function(c) { c.classList.remove('active'); });
+        card.classList.add('active');
+        if (coords) {
+            google.maps.event.trigger(map, 'resize');
+            setTimeout(function() {
+                map.setCenter(coords);
+                map.setZoom(16);
+            }, 50);
+            showInfoWindow(place, coords);
+        }
+    });
+
+    return card;
+}
+function findMarker(placeId) {
+    for (var i = 0; i < markers.length; i++) {
+        if (markers[i].placeId === placeId) return markers[i];
+    }
+    return null;
+}
+
+// --- Yildiz Olustur ---
+function createStars(rating) {
+    var html = '';
+    for (var i = 1; i <= 5; i++) {
+        if (i <= Math.round(rating)) {
+            html += '<svg class="star" viewBox="0 0 24 24" fill="currentColor"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>';
+        } else {
+            html += '<svg class="star empty" viewBox="0 0 24 24" fill="currentColor"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>';
+        }
+    }
+    return html;
+}
+
+// --- Haritaya Pin Ekle ---
+function addMarkers(places) {
+    clearMarkers();
+
+    for (var i = 0; i < places.length; i++) {
+        (function (place, idx) {
+            // coordsMap'ten koordinat al
+            var coords = getCoords(place.place_id);
+            if (!coords) {
+                console.warn('[WARN] Marker iÃƒÂ§in koordinat yok:', place.name);
+                return;
+            }
+
+            var marker = new google.maps.Marker({
+                position: coords,
+                map: map,
+                title: place.name,
+                icon: {
+                    url: 'data:image/svg+xml,' + encodeURIComponent(
+                        '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">' +
+                        '<path d="M16 0C7.16 0 0 7.16 0 16c0 12 16 24 16 24s16-12 16-24C32 7.16 24.84 0 16 0z" fill="#2563eb"/>' +
+                        '<circle cx="16" cy="14" r="6" fill="white"/>' +
+                        '<text x="16" y="17" text-anchor="middle" font-size="10" font-weight="bold" fill="#2563eb">' + (idx + 1) + '</text>' +
+                        '</svg>'
+                    ),
+                    scaledSize: new google.maps.Size(32, 40),
+                    anchor: new google.maps.Point(16, 40)
+                },
+                animation: google.maps.Animation.DROP,
+                zIndex: 100
+            });
+
+            marker.placeId = place.place_id;
+
+            marker.addListener('click', function () {
+                showInfoWindow(place, marker);
+                highlightCard(place.place_id);
+            });
+
+            markers.push(marker);
+        })(places[i], i);
+    }
+
+    console.log('[OK]', markers.length, 'marker eklendi');
+}
+
+// --- Karttaki ilgili yeri vurgula ---
+function highlightCard(placeId) {
+    var cards = document.querySelectorAll('.place-card');
+    cards.forEach(function (c) {
+        c.classList.remove('active');
+        if (c.getAttribute('data-place-id') === placeId) {
+            c.classList.add('active');
+            // YalnÃ„Â±zca results-list iÃƒÂ§erisinde scroll yap (sayfayÃ„Â± kaydÃ„Â±rmaz)
+            var container = document.getElementById('results-list');
+            if (container) {
+                var topPos = c.offsetTop - container.offsetTop - 10;
+                container.scrollTo({ top: topPos, behavior: 'smooth' });
+            }
+        }
+    });
+}
+
+// --- HaritayÃ„Â± TÃƒÂ¼m Marker'lara SÃ„Â±Ã„Å¸dÃ„Â±r ---
+function fitMapToMarkers() {
+    if (markers.length === 0) return;
+
+    var bounds = new google.maps.LatLngBounds();
+
+    for (var i = 0; i < markers.length; i++) {
+        bounds.extend(markers[i].getPosition());
+    }
+
+    if (searchCircle) {
+        bounds.union(searchCircle.getBounds());
+    }
+
+    map.fitBounds(bounds);
+
+    google.maps.event.addListenerOnce(map, 'idle', function () {
+        if (map.getZoom() > 16) map.setZoom(16);
+    });
+
+    console.log('[OK] Harita tum sonuclara sigdirildi');
+}
+
+// --- InfoWindow Goster ---
+function showInfoWindow(place, marker) {
+    var coords = getCoords(place.place_id);
+    var phone = place.formatted_phone_number
+        ? '<p><strong>Tel:</strong> <a href="tel:' + place.formatted_phone_number + '">' + place.formatted_phone_number + '</a></p>'
+        : '';
+    var website = place.website
+        ? '<p><a href="' + place.website + '" target="_blank">Web Sitesi</a></p>'
+        : '';
+    var rating = place.rating
+        ? '<p><strong>' + place.rating.toFixed(1) + '</strong> / 5 (' + (place.user_ratings_total || 0) + ' yorum)</p>'
+        : '';
+
+    var directionsUrl = place.url || (coords ? 'https://www.google.com/maps/dir/?api=1&destination=' + coords.lat + ',' + coords.lng : '#');
+
+    var content = '<div class="info-window">' +
+        '<h3>' + escapeHTML(place.name) + '</h3>' +
+        '<p>' + escapeHTML(place.formatted_address || place.vicinity || '') + '</p>' +
+        rating + phone + website +
+        '<p><a href="' + directionsUrl + '" target="_blank">Yol Tarifi Al</a></p>' +
+        '</div>';
+
+    infoWindow.setContent(content);
+    infoWindow.open(map, marker);
+}
+
+// --- Merkez Pin ---
+function addCenterMarker(coords) {
+    if (centerMarker) {
+        centerMarker.setMap(null);
+    }
+
+    centerMarker = new google.maps.Marker({
+        position: coords,
+        map: map,
+        title: 'Secilen Konum',
+        icon: {
+            url: 'data:image/svg+xml,' + encodeURIComponent(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">' +
+                '<circle cx="12" cy="12" r="10" fill="#ef4444" stroke="white" stroke-width="3"/>' +
+                '<circle cx="12" cy="12" r="4" fill="white"/>' +
+                '</svg>'
+            ),
+            scaledSize: new google.maps.Size(24, 24),
+            anchor: new google.maps.Point(12, 12)
+        },
+        zIndex: 200
+    });
+}
+
+// --- Arama Cemberi ---
+function drawSearchCircle(center, radius) {
+    if (searchCircle) searchCircle.setMap(null);
+
+    searchCircle = new google.maps.Circle({
+        strokeColor: '#2563eb',
+        strokeOpacity: 0.3,
+        strokeWeight: 2,
+        fillColor: '#2563eb',
+        fillOpacity: 0.07,
+        map: map,
+        center: center,
+        radius: radius
+    });
+}
+
+// --- CSV Export ---
+
+function exportCSV(places) {
+    if (!places || places.length === 0) {
+        alert('Dışa aktarılacak sonuç yok.');
+        return;
+    }
+
+    var csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+    csvContent += "Toptancı Adı,Adres,Telefon,Web Sitesi,Google Haritalar,Durum,Puan,Dijital Olgunluk Skoru,CRM Durumu,CRM Notu\n";
+
+    places.forEach(function(place) {
+        var name = '"' + (place.name || '').replace(/"/g, '""') + '"';
+        var address = '"' + (place.formatted_address || place.vicinity || '').replace(/"/g, '""') + '"';
+        var phone = '"' + (place.formatted_phone_number || '') + '"';
+        var website = '"' + (place.website || '') + '"';
+        var url = '"' + (place.url || '') + '"';
+        var isOpen = '';
+        if (place.opening_hours) {
+            try {
+                isOpen = place.opening_hours.isOpen ? (place.opening_hours.isOpen() ? 'Acik' : 'Kapali') : '';
+            } catch(e){}
+        }
+        var rating = place.rating || '';
+        var dScore = calculateDigitalScore(place);
+        
+        var pData = crmData[place.place_id] || { status: 'Beklemede', notes: '' };
+        var crmStatus = '"' + pData.status + '"';
+        var crmNotes = '"' + pData.notes.replace(/"/g, '""') + '"';
+
+        csvContent += name + "," + address + "," + phone + "," + website + "," + url + "," + isOpen + "," + rating + "," + dScore + "," + crmStatus + "," + crmNotes + "\n";
+    });
+
+    var encodedUri = encodeURI(csvContent);
+    var link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "toptanci-crm-listesi-" + getDateString() + ".csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function clearMarkers() {
+    for (var i = 0; i < markers.length; i++) {
+        markers[i].setMap(null);
+    }
+    markers = [];
+}
+
+function clearAll() {
+    document.getElementById('results-list').innerHTML = '';
+    document.getElementById('results-header').classList.add('hidden');
+    document.getElementById('no-results').classList.add('hidden');
+    document.getElementById('initial-state').classList.add('hidden');
+    clearMarkers();
+    if (centerMarker) { centerMarker.setMap(null); centerMarker = null; }
+    if (searchCircle) { searchCircle.setMap(null); searchCircle = null; }
+    if (infoWindow) infoWindow.close();
+    allPlaces = [];
+    coordsMap = {};
+}
+
+function showResultsHeader(count) {
+    document.getElementById('results-header').classList.remove('hidden');
+    document.getElementById('results-count-text').textContent = count + ' toptancı bulundu';
+}
+
+function showNoResults() {
+    document.getElementById('no-results').classList.remove('hidden');
+    document.getElementById('results-header').classList.add('hidden');
+}
+
+function showLoading(show) {
+    var overlay = document.getElementById('loading-overlay');
+    if (show) overlay.classList.remove('hidden');
+    else overlay.classList.add('hidden');
+}
+
+function updateLoadingText(text) {
+    document.getElementById('loading-text').textContent = text;
+}
+
+function escapeHTML(str) {
+    if (!str) return '';
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function extractDomain(url) {
+    try { return new URL(url).hostname.replace('www.', ''); }
+    catch (e) { return url; }
+}
+
+function getDateString() {
+    var d = new Date();
+    return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+}
+
+function toggleHours(id, element) {
+    var list = document.getElementById(id);
+    var chevron = element.querySelector('.hours-chevron');
+    if (list.classList.contains('show')) {
+        list.classList.remove('show');
+        if (chevron) chevron.classList.remove('expanded');
+    } else {
+        list.classList.add('show');
+        if (chevron) chevron.classList.add('expanded');
+    }
+}
+
+// --- Uygulamayi Baslat ---
+initApp();
+
+
+
+// --- Yeni Ã–zellik FonksiyonlarÄ± ---
+
+function toggleFavorite(placeId, btnElement) {
+    var index = favorites.indexOf(placeId);
+    if (index === -1) {
+        favorites.push(placeId);
+        btnElement.classList.add('active');
+    } else {
+        favorites.splice(index, 1);
+        btnElement.classList.remove('active');
+    }
+    localStorage.setItem('kiyafet_favorites', JSON.stringify(favorites));
+    
+    // Eger sadece favoriler aciksa aninda gizle
+    if (showFavoritesOnly) {
+        applyFiltersAndRender();
+    }
+}
+
+function drawRouteTo(lat, lng) {
+    if (!selectedLatLng) {
+        alert('LÃ¼tfen Ã¶nce mevcut konumunuzu bulun veya bir baÅŸlangÄ±Ã§ adresi seÃ§in.');
+        return;
+    }
+
+    var request = {
+        origin: selectedLatLng,
+        destination: { lat: lat, lng: lng },
+        travelMode: 'DRIVING'
+    };
+
+    directionsService.route(request, function(result, status) {
+        if (status == 'OK') {
+            directionsRenderer.setDirections(result);
+            
+            // EÄŸer mobildeyse veya results panel aÃ§iksa, haritayi daha rahat gormek icin scroll yapabiliriz.
+            if(window.innerWidth <= 768) {
+                document.getElementById('map').scrollIntoView({behavior: 'smooth'});
+            }
+        } else {
+            alert('Rota Ã§izilemedi: ' + status);
+        }
+    });
+}
+
+function showStreetView(lat, lng) {
+    var panorama = map.getStreetView();
+    panorama.setPosition({ lat: lat, lng: lng });
+    panorama.setPov({
+        heading: 34,
+        pitch: 10
+    });
+    panorama.setVisible(true);
+}
+// --- CRM ve Satış Araçları ---
+function updateCrmStatus(placeId, status) {
+    if (!crmData[placeId]) crmData[placeId] = { isFavorite: false, status: 'Beklemede', notes: '' };
+    crmData[placeId].status = status;
+    localStorage.setItem('kiyafet_crm_data', JSON.stringify(crmData));
+}
+
+function updateCrmNotes(placeId, notes) {
+    if (!crmData[placeId]) crmData[placeId] = { isFavorite: false, status: 'Beklemede', notes: '' };
+    crmData[placeId].notes = notes;
+    localStorage.setItem('kiyafet_crm_data', JSON.stringify(crmData));
+}
+
+function generatePitch(name, score, hasWeb) {
+    var title = "Satış Metni: " + name;
+    var webText = hasWeb == '1' ? 
+        "Web siteniz var ancak otomasyon ve dijitalleşme konusunda rakiplerinizin gerisinde kalmış görünüyor." : 
+        "İşletmenizin henüz bir web sitesi olmadığını fark ettim. Bugünlerde dijital vitrini olmayan toptancılar maalesef görünmez oluyor.";
+    
+    var pitch = "Merhaba, iyi çalışmalar dilerim. Ben [Adınız].<br><br>" +
+                "Google Haritalar üzerinden <strong>" + name + "</strong> işletmenizin profilini inceledim. " +
+                "Dijital olgunluk analizi yaptığımızda işletmenizin puanı 10 üzerinden <strong>" + score + "</strong> çıktı.<br><br>" +
+                webText + "<br><br>" +
+                "Bizim <em>Yapay Zeka Destekli Otomasyon Sistemimiz</em> ile saniyeler içinde B2B e-ticaret sitenizi kurabilir, ürün fotoğraflarınızı mankenlere giydirebilir ve Instagram paylaşımlarınızı otomatiğe bağlayabilirsiniz. <br><br>" +
+                "Tüm operasyonunuzu tek panelden yönetip satışlarınızı artırmak için 10 dakikalık bir demo toplantısı organize edelim mi?";
+    
+    document.getElementById('modal-title').innerText = title;
+    document.getElementById('modal-body').innerHTML = '<div class="pitch-text">' + pitch + '</div>';
+    document.getElementById('info-modal').classList.remove('hidden');
+}
+
+function showQrModal(name, phone, address, website) {
+    var vCard = "BEGIN:VCARD\nVERSION:3.0\nN:;" + name + ";;;\nFN:" + name + "\nORG:" + name + "\nTEL;TYPE=WORK,VOICE:" + phone + "\nADR;TYPE=WORK:;;" + address + "\nURL:" + website + "\nEND:VCARD";
+    var qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=" + encodeURIComponent(vCard);
+    
+    document.getElementById('modal-title').innerText = name + " - QR Kartvizit";
+    document.getElementById('modal-body').innerHTML = '<div style="text-align:center; padding: 20px;"><img src="' + qrUrl + '" alt="QR Code"><p style="margin-top:10px; font-size:0.85rem; color:#64748b;">Müşteriyi rehberinize eklemek için telefonunuzun kamerasını okutun.</p></div>';
+    document.getElementById('info-modal').classList.remove('hidden');
+}
+
+function toggleFavorite(placeId, btnElement) {
+    if (!crmData[placeId]) crmData[placeId] = { isFavorite: false, status: 'Beklemede', notes: '' };
+    
+    crmData[placeId].isFavorite = !crmData[placeId].isFavorite;
+    
+    if (crmData[placeId].isFavorite) {
+        btnElement.classList.add('active');
+    } else {
+        btnElement.classList.remove('active');
+    }
+    
+    localStorage.setItem('kiyafet_crm_data', JSON.stringify(crmData));
+    
+    if (showFavoritesOnly) {
+        applyFiltersAndRender();
+    }
+}
